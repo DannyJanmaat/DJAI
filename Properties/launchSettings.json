@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DJAI (Unpackaged)": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

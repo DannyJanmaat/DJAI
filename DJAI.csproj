@@ -1,0 +1,149 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+		<RootNamespace>DJAI</RootNamespace>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<Platforms>x86;x64;arm64</Platforms>
+		<RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+		<UseWinUI>true</UseWinUI>
+		<!-- COMPLETELY disable packaging -->
+		<EnableMsixTooling>false</EnableMsixTooling>
+		<EnablePreviewMsixTooling>false</EnablePreviewMsixTooling>
+		<WindowsPackageType>None</WindowsPackageType>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<LangVersion>latest</LangVersion>
+		<GenerateLibraryLayout>true</GenerateLibraryLayout>
+		<NoWarn>$(NoWarn);CA1822;CA1859</NoWarn>
+		<!-- Self-contained app settings -->
+		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+		<SelfContained>true</SelfContained>
+		<!-- Disable all packaging -->
+		<AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+		<DisableWinRTChecks>true</DisableWinRTChecks>
+	</PropertyGroup>
+
+	<!-- Add direct launch profile -->
+	<PropertyGroup>
+		<StartupObject>DJAI.Program</StartupObject>
+	</PropertyGroup>
+
+	<!-- Create a folder for PublishProfiles if it doesn't exist -->
+	<Target Name="EnsurePublishProfilesExist" BeforeTargets="PrepareForBuild">
+		<MakeDir Directories="$(ProjectDir)Properties\PublishProfiles" Condition="!Exists('$(ProjectDir)Properties\PublishProfiles')" />
+	</Target>
+
+	<!-- Build Configurations -->
+	<PropertyGroup Condition="'$(Configuration)'=='Debug'">
+		<DefineConstants>DEBUG;TRACE</DefineConstants>
+		<DebugType>full</DebugType>
+		<DebugSymbols>true</DebugSymbols>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<DefineConstants>TRACE</DefineConstants>
+		<Optimize>true</Optimize>
+		<DebugType>pdbonly</DebugType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="Views\ChatPage.xaml" />
+		<None Remove="Views\SettingsPage.xaml" />
+		<None Remove="Controls\MarkdownTextBlock.xaml" />
+		<None Remove="Assets\markdown-template.html" />
+		<None Remove="Assets\AppIcon.ico" />
+		<None Remove="appsettings.json" />
+		<None Remove="appsettings.Development.json" />
+	</ItemGroup>
+
+	<!-- Core Packages -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.2" />
+	</ItemGroup>
+
+	<!-- WinUI Packages -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250205002" />
+		<PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+		<PackageReference Include="CommunityToolkit.WinUI.UI" Version="7.1.2" />
+		<PackageReference Include="CommunityToolkit.WinUI.UI.Controls" Version="7.1.2" />
+		<PackageReference Include="CommunityToolkit.WinUI.UI.Media" Version="7.1.2" />
+		<PackageReference Include="CommunityToolkit.WinUI.Notifications" Version="7.1.2" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+	</ItemGroup>
+
+	<!-- Utility Packages -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3065.39" />
+		<PackageReference Include="StackExchange.Redis" Version="2.8.31" />
+		<PackageReference Include="System.Drawing.Common" Version="9.0.2" />
+		<PackageReference Include="System.Net.Http" Version="4.3.4" />
+		<PackageReference Include="System.Net.Http.Json" Version="9.0.2" />
+		<PackageReference Include="System.Private.Uri" Version="4.3.2" />
+		<PackageReference Include="System.Text.Json" Version="9.0.2" />
+		<PackageReference Include="Microsoft.Toolkit.HighPerformance" Version="7.1.2" />
+		<PackageReference Include="Markdown.Avalonia" Version="11.0.2" />
+		<PackageReference Include="Polly" Version="8.5.2" />
+		<PackageReference Include="Serilog" Version="4.2.0" />
+		<PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+		<PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+	</ItemGroup>
+
+	<!-- Application Content -->
+	<ItemGroup>
+		<!-- <Content Include="Assets\AppIcon.ico" /> -->
+		<Content Include="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="appsettings.Development.json" Condition="Exists('appsettings.Development.json')">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<DependentUpon>appsettings.json</DependentUpon>
+		</Content>
+		<Content Include="Assets\markdown-template.html">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
+
+	<!-- Add an empty publish profile to ensure we have one -->
+	<ItemGroup>
+		<None Include="Properties\PublishProfiles\win-x64.pubxml" Condition="!Exists('Properties\PublishProfiles\win-x64.pubxml')">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<!-- App Assets -->
+	<ItemGroup>
+		<Folder Include="Assets\Icons\" />
+		<Folder Include="Assets\Images\" />
+		<Folder Include="Properties\PublishProfiles\" />
+	</ItemGroup>
+
+	<!-- XAML Pages -->
+	<ItemGroup>
+		<Page Update="Views\ChatPage.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="Views\SettingsPage.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+		<Page Update="Controls\MarkdownTextBlock.xaml">
+			<Generator>MSBuild:Compile</Generator>
+		</Page>
+	</ItemGroup>
+
+	<!-- Manifest -->
+	<ItemGroup>
+		<Manifest Include="$(ApplicationManifest)" />
+	</ItemGroup>
+</Project>

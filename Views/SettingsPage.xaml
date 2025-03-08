@@ -1,0 +1,106 @@
+<Page
+    x:Class="DJAI.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DJAI.Views"
+    xmlns:models="using:DJAI.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Text="Instellingen" Style="{StaticResource TitleTextBlockStyle}" Margin="0,0,0,24"/>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Spacing="24">
+                <!-- Provider selectie -->
+                <StackPanel>
+                    <TextBlock Text="AI Provider" Margin="0,0,0,8" FontWeight="SemiBold"/>
+                    <ComboBox x:Name="ProviderComboBox"
+                              Width="250" 
+                              HorizontalAlignment="Left"
+                              SelectionChanged="ProviderComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Anthropic Claude"/>
+                        <ComboBoxItem Content="OpenAI GPT"/>
+                        <ComboBoxItem Content="GitHub Copilot"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- API Key -->
+                <StackPanel>
+                    <TextBlock Text="API Key" Margin="0,0,0,8" FontWeight="SemiBold"/>
+                    <PasswordBox Password="{x:Bind ViewModel.CurrentApiKey, Mode=TwoWay}" 
+                                Width="400" 
+                                HorizontalAlignment="Left"
+                                PlaceholderText="Voer je API key in" />
+                    <TextBlock Text="De API key wordt lokaal opgeslagen en wordt alleen gebruikt voor API-verzoeken." 
+                              Opacity="0.6" 
+                              Margin="0,8,0,0"/>
+                </StackPanel>
+
+                <!-- Provider-specifieke instellingen -->
+                <StackPanel>
+                    <TextBlock Text="Provider Instellingen" Margin="0,0,0,16" FontWeight="SemiBold"/>
+
+                    <!-- Model selectie -->
+                    <TextBlock Text="Model" Margin="0,0,0,8"/>
+                    <ComboBox ItemsSource="{x:Bind ViewModel.CurrentSettings.AvailableModels, Mode=OneWay}"
+                              SelectedItem="{x:Bind ViewModel.CurrentSettings.DefaultModel, Mode=TwoWay}"
+                              Width="250"
+                              HorizontalAlignment="Left"/>
+
+                    <!-- Temperatuur -->
+                    <TextBlock Text="Temperatuur" Margin="0,16,0,8"/>
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <Slider Value="{x:Bind ViewModel.CurrentSettings.Temperature, Mode=TwoWay}" 
+                                Width="250"
+                                Minimum="0.0"
+                                Maximum="2.0"
+                                StepFrequency="0.1"/>
+                        <TextBlock Text="{x:Bind ViewModel.CurrentSettings.Temperature, Mode=OneWay}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="Lager = meer deterministische output. Hoger = meer creatieve/gevarieerde output." 
+                              Opacity="0.6"
+                              Margin="0,4,0,0"/>
+
+                    <!-- Max tokens -->
+                    <TextBlock Text="Max Tokens per Antwoord" Margin="0,16,0,8"/>
+                    <NumberBox Value="{x:Bind ViewModel.CurrentSettings.MaxTokens, Mode=TwoWay}"
+                               Width="120"
+                               HorizontalAlignment="Left"
+                               Minimum="50"
+                               Maximum="100000"
+                               SmallChange="50"
+                               LargeChange="500"
+                               SpinButtonPlacementMode="Compact"/>
+
+                    <!-- Streaming toggle -->
+                    <CheckBox Content="Streaming inschakelen" 
+                              IsChecked="{x:Bind ViewModel.CurrentSettings.StreamingEnabled, Mode=TwoWay}"
+                              Margin="0,16,0,0"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Actieknoppen -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+            <Button Content="Herstellen" Command="{x:Bind ViewModel.ResetCommand}" Margin="0,0,12,0"/>
+            <Button Content="Opslaan" Command="{x:Bind ViewModel.SaveCommand}" Style="{StaticResource AccentButtonStyle}"/>
+        </StackPanel>
+
+        <!-- Laad indicator -->
+        <ProgressRing Grid.RowSpan="3" 
+                      IsActive="{x:Bind ViewModel.IsSaving, Mode=OneWay}"
+                      Width="50" 
+                      Height="50"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center"/>
+    </Grid>
+</Page>

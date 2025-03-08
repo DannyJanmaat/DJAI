@@ -1,0 +1,20 @@
+<Application
+    x:Class="DJAI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DJAI"
+    xmlns:helpers="using:DJAI.Helpers">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!-- Other merged dictionaries here -->
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Resources -->
+            <helpers:RoleToBackgroundConverter x:Key="RoleToBackgroundConverter"/>
+            <helpers:BooleanInverseConverter x:Key="BooleanInverseConverter"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
