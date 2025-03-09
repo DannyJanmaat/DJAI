@@ -1,8 +1,10 @@
 {
   "profiles": {
+    "DJAI (Package)": {
+      "commandName": "MsixPackage"
+    },
     "DJAI (Unpackaged)": {
-      "commandName": "Project",
-      "nativeDebugging": true
+      "commandName": "Project"
     }
   }
 }

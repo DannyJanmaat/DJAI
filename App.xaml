@@ -15,6 +15,14 @@
             <!-- Resources -->
             <helpers:RoleToBackgroundConverter x:Key="RoleToBackgroundConverter"/>
             <helpers:BooleanInverseConverter x:Key="BooleanInverseConverter"/>
+
+            <!-- Converters -->
+            <converters:BoolToBackgroundConverter x:Key="BoolToBackgroundConverter"/>
+            <converters:BoolToAlignmentConverter x:Key="BoolToAlignmentConverter"/>
+            <converters:BoolToSenderConverter x:Key="BoolToSenderConverter"/>
+            <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <converters:BoolNegationConverter x:Key="BoolNegationConverter"/>
+            
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -1,50 +1,37 @@
-﻿using DJAI.Contracts;
-using DJAI.Helpers;
-using DJAI.ViewModels;
+﻿// Update file: Views/ChatPage.xaml.cs
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using System;
-
-#nullable enable
+using System.Runtime.Versioning;
+using Microsoft.Extensions.DependencyInjection;
+using DJAI.ViewModels;
 
 namespace DJAI.Views
 {
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public sealed partial class ChatPage : Page
     {
-        public ChatViewModel ViewModel { get; }
+        // Make this a public property for binding
+        public MainViewModel? ViewModel { get; private set; }
 
         public ChatPage()
         {
-            this.InitializeComponent();
-
-            // Normaal gesproken zou je deze ViewModel injecteren via DI
-            // Maar voor de eenvoud maken we het hier direct
-            var services = App.Current.Services;
-
-            // Use pattern matching for cleaner code
-            if (services.GetService(typeof(IAIService)) is IAIService aiService &&
-                services.GetService(typeof(DJAI.Helpers.ApiRateLimiter)) is DJAI.Helpers.ApiRateLimiter rateLimiter &&
-                services.GetService(typeof(DJAI.Helpers.MessageLimitHandler)) is DJAI.Helpers.MessageLimitHandler messageLimitHandler &&
-                services.GetService(typeof(ICacheService)) is ICacheService cacheService)
+            // Get the service provider from the App class
+            var app = Microsoft.UI.Xaml.Application.Current as App;
+            if (app?.ServiceProvider != null)
             {
-                ViewModel = new ChatViewModel(aiService, rateLimiter, messageLimitHandler, cacheService);
+                // Get the view model from the service provider
+                ViewModel = app.ServiceProvider.GetService<MainViewModel>();
             }
             else
             {
-                throw new InvalidOperationException("Required services not available.");
+                // Create a default view model if service provider is not available
+                ViewModel = new MainViewModel();
+                System.Diagnostics.Debug.WriteLine("Service provider not available, using default ViewModel");
             }
-        }
 
-        private void UserInput_KeyDown(object sender, KeyRoutedEventArgs e)
-        {
-            if (e.Key == Windows.System.VirtualKey.Enter && !e.KeyStatus.IsExtendedKey &&
-                sender is TextBox textBox && !string.IsNullOrWhiteSpace(textBox.Text) &&
-                !ViewModel.IsGenerating)
-            {
-                ViewModel.SendMessageCommand.Execute(null);
-                e.Handled = true;
-            }
+            this.InitializeComponent();
+            this.DataContext = ViewModel;
         }
     }
 }

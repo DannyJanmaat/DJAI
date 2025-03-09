@@ -1,57 +1,81 @@
-﻿using DJAI.Contracts;
-using DJAI.Helpers;
-using DJAI.Services;
-using Microsoft.Extensions.Configuration;
+﻿using DJAI.Services;
+using DJAI.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using System;
-using System.IO;
+using System.Diagnostics;
+using System.Runtime.Versioning;
 
 namespace DJAI
 {
+    [SupportedOSPlatform("windows10.0.17763.0")]
     public partial class App : Application
     {
-        public IServiceProvider Services { get; }
-        public static new App Current => (App)Application.Current;
-
         private Window? m_window;
+
+        // Add this property to hold the service provider
+        public ServiceProvider? ServiceProvider { get; private set; }
 
         public App()
         {
-            this.InitializeComponent();
-            Services = ConfigureServices();
+            try
+            {
+                this.InitializeComponent();
+                this.UnhandledException += App_UnhandledException;
+
+                // Configure services
+                ConfigureServices();
+
+                Debug.WriteLine("App constructor completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Exception in App constructor: {ex.Message}");
+                Debug.WriteLine(ex.StackTrace);
+            }
         }
 
-        private IServiceProvider ConfigureServices()
+        // Add this method to configure services
+        private void ConfigureServices()
         {
             var services = new ServiceCollection();
 
-            // Configuration
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .Build();
-            services.AddSingleton<IConfiguration>(configuration);
+            // Register your services
+            services.AddSingleton<ILLMService, OpenAIService>();
+            services.AddSingleton<AnthropicService>();
 
-            // Services
-            services.AddSingleton<ICacheService, RedisCacheService>(provider =>
-                new RedisCacheService(configuration["Redis:ConnectionString"] ?? "localhost:6379"));
-            services.AddSingleton<ApiRateLimiter>();
-            services.AddSingleton<MessageLimitHandler>();
-            services.AddSingleton<SettingsService>();
-            services.AddSingleton<AIServiceFactory>();
-            services.AddTransient<ExportService>();
+            // Register view models
+            services.AddTransient<MainViewModel>();
 
-            return services.BuildServiceProvider();
+            // Build service provider
+            ServiceProvider = services.BuildServiceProvider();
         }
 
-        protected override void OnLaunched(LaunchActivatedEventArgs args)
+        private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
-            // IMPORTANT: Set unpackaged app path for file access
-            Windows.Storage.ApplicationData.Current.LocalFolder.Path = Directory.GetCurrentDirectory();
+            Debug.WriteLine($"UNHANDLED EXCEPTION: {e.Message}");
+            Debug.WriteLine(e.Exception.ToString());
+            e.Handled = true;
+        }
 
-            m_window = new MainWindow();
-            m_window.Activate();
+        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        {
+            try
+            {
+                Debug.WriteLine("OnLaunched method started");
+
+                m_window = new MainWindow();
+                Debug.WriteLine("MainWindow created successfully");
+                m_window.Activate();
+                Debug.WriteLine("MainWindow activated successfully");
+
+                Debug.WriteLine("OnLaunched method completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Exception in OnLaunched: {ex.Message}");
+                Debug.WriteLine(ex.StackTrace);
+            }
         }
     }
 }

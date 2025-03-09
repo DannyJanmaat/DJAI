@@ -1,356 +1,239 @@
-﻿using DJAI.Commands;
-using DJAI.Contracts;
-using DJAI.Helpers;
+﻿// Create file: ViewModels/MainViewModel.cs
 using DJAI.Models;
 using DJAI.Services;
-using DJAI.Views;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using System;
+using Microsoft.UI.Dispatching;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using System.Windows.Input;
-
-#nullable enable
 
 namespace DJAI.ViewModels
 {
-    public enum PageType
-    {
-        Chat,
-        Settings
-    }
-
     public partial class MainViewModel : INotifyPropertyChanged
     {
-        private readonly AIServiceFactory _serviceFactory;
-        private readonly ApiRateLimiter _rateLimiter;
-        private readonly MessageLimitHandler _messageLimitHandler;
-        private readonly ICacheService _cacheService;
-        private readonly SettingsService _settingsService;
-        private readonly ExportService _exportService;
+        // Services
+        private readonly ILLMService? _llmService;
+        private readonly DispatcherQueue? _dispatcherQueue;
 
-        // Initialize with non-null values or mark as nullable with ?
-        private ChatViewModel? _chatViewModel;
-        private UIElement? _activePage;
-        private Conversation? _selectedConversation;
-        private bool _isExportMenuOpen;
-        private AIProvider _selectedProvider;
-        private ObservableCollection<Conversation> _conversations = [];
+        // Cancellation token for API requests
+        private CancellationTokenSource? _cancellationTokenSource;
 
-        public ChatViewModel? ChatViewModel
-        {
-            get => _chatViewModel;
-            private set
-            {
-                if (_chatViewModel != value)
-                {
-                    _chatViewModel = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
+        // State
+        private bool _isGenerating;
+        private string _userInput = string.Empty;
+        private string _statusMessage = "Ready";
 
-        public UIElement? ActivePage
-        {
-            get => _activePage;
-            private set
-            {
-                if (_activePage != value)
-                {
-                    _activePage = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public AIProvider SelectedProvider
-        {
-            get => _selectedProvider;
-            set
-            {
-                if (_selectedProvider != value)
-                {
-                    _selectedProvider = value;
-                    OnPropertyChanged();
-                    UpdateAIService();
-                }
-            }
-        }
-
-        public ObservableCollection<Conversation> Conversations
-        {
-            get => _conversations;
-            set
-            {
-                if (_conversations != value)
-                {
-                    _conversations = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public Conversation? SelectedConversation
-        {
-            get => _selectedConversation;
-            set
-            {
-                if (_selectedConversation != value)
-                {
-                    _selectedConversation = value;
-                    OnPropertyChanged();
-                    LoadSelectedConversation();
-                }
-            }
-        }
-
-        public bool IsExportMenuOpen
-        {
-            get => _isExportMenuOpen;
-            set
-            {
-                if (_isExportMenuOpen != value)
-                {
-                    _isExportMenuOpen = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public ICommand NewConversationCommand { get; }
-        public ICommand DeleteConversationCommand { get; }
-        public ICommand OpenSettingsCommand { get; }
-        public ICommand CloseSettingsCommand { get; }
-        public ICommand ExportConversationCommand { get; }
-        public ICommand CloseExportMenuCommand { get; }
-        public ICommand ExportAsCommand { get; }
-
-        public MainViewModel(
-            AIServiceFactory serviceFactory,
-            ApiRateLimiter rateLimiter,
-            MessageLimitHandler messageLimitHandler,
-            ICacheService cacheService,
-            SettingsService settingsService,
-            ExportService exportService)
-        {
-            _serviceFactory = serviceFactory ?? throw new ArgumentNullException(nameof(serviceFactory));
-            _rateLimiter = rateLimiter ?? throw new ArgumentNullException(nameof(rateLimiter));
-            _messageLimitHandler = messageLimitHandler ?? throw new ArgumentNullException(nameof(messageLimitHandler));
-            _cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
-            _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-            _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
-
-            _selectedProvider = AIProvider.Anthropic;
-
-            // Initialize commands
-            NewConversationCommand = new RelayCommand(_ => CreateNewConversation());
-            DeleteConversationCommand = new RelayCommand(_ => DeleteSelectedConversation(), _ => SelectedConversation != null);
-            OpenSettingsCommand = new RelayCommand(_ => NavigateTo(PageType.Settings));
-            CloseSettingsCommand = new RelayCommand(_ => NavigateTo(PageType.Chat));
-            ExportConversationCommand = new RelayCommand(_ => IsExportMenuOpen = true, _ => SelectedConversation != null);
-            CloseExportMenuCommand = new RelayCommand(_ => IsExportMenuOpen = false);
-            ExportAsCommand = new RelayCommand(async format => await ExportConversationAsync(format as string ?? string.Empty));
-
-            // Initialize the UI
-            UpdateAIService();
-            NavigateTo(PageType.Chat);
-            LoadConversationsAsync();
-        }
-
-        private void NavigateTo(PageType pageType)
-        {
-            // Afhankelijk van pageType, toon juiste pagina
-            switch (pageType)
-            {
-                case PageType.Chat:
-                    if (ChatViewModel != null)
-                    {
-                        ActivePage = new ChatPage { DataContext = ChatViewModel };
-                    }
-                    break;
-                case PageType.Settings:
-                    ActivePage = new SettingsPage { DataContext = new SettingsViewModel(_settingsService) };
-                    break;
-            }
-        }
-
-        private async void LoadConversationsAsync()
-        {
-            // Laad gesprekken uit de cache
-            try
-            {
-                var conversationIds = await _cacheService.GetAsync<string[]>("saved_conversation_ids");
-                if (conversationIds != null && conversationIds.Length > 0)
-                {
-                    foreach (var id in conversationIds)
-                    {
-                        var conversation = await _cacheService.GetAsync<Conversation>($"conversation_{id}");
-                        if (conversation != null)
-                        {
-                            Conversations.Add(conversation);
-                        }
-                    }
-
-                    if (Conversations.Any())
-                    {
-                        SelectedConversation = Conversations.First();
-                    }
-                    else
-                    {
-                        CreateNewConversation();
-                    }
-                }
-                else
-                {
-                    CreateNewConversation();
-                }
-            }
-            catch (Exception)
-            {
-                // Indien er een fout is, maak een nieuw gesprek aan
-                CreateNewConversation();
-            }
-        }
-
-        private void CreateNewConversation()
-        {
-            var newConversation = new Conversation
-            {
-                Title = $"Nieuw gesprek {DateTime.Now:g}",
-                SelectedProvider = SelectedProvider.ToString()
-            };
-
-            Conversations.Add(newConversation);
-            SelectedConversation = newConversation;
-            _ = SaveConversationsAsync();
-        }
-
-        public void DeleteSelectedConversation()
-        {
-            if (SelectedConversation == null)
-                return;
-
-            var idToRemove = SelectedConversation.Id;
-            Conversations.Remove(SelectedConversation);
-
-            // Verwijder uit cache
-            _cacheService.RemoveAsync($"conversation_{idToRemove}");
-
-            if (Conversations.Any())
-            {
-                SelectedConversation = Conversations.First();
-            }
-            else
-            {
-                CreateNewConversation();
-            }
-
-            _ = SaveConversationsAsync();
-        }
-
-        private void LoadSelectedConversation()
-        {
-            if (SelectedConversation == null)
-                return;
-
-            // Bepaal de provider
-            if (Enum.TryParse<AIProvider>(SelectedConversation.SelectedProvider, out var provider))
-            {
-                SelectedProvider = provider;
-            }
-
-            // Update de chatviewmodel met geselecteerde gesprek
-            UpdateAIService();
-        }
-
-        private void UpdateAIService()
-        {
-            try
-            {
-                var aiService = _serviceFactory.CreateService(SelectedProvider);
-                ChatViewModel = new ChatViewModel(aiService, _rateLimiter, _messageLimitHandler, _cacheService, SelectedConversation);
-
-                // Update het geselecteerde gesprek met de huidige provider
-                if (SelectedConversation != null)
-                {
-                    SelectedConversation.SelectedProvider = SelectedProvider.ToString();
-                    _ = SaveConversationsAsync();
-                }
-
-                // Als we op de chat pagina zijn, update de actieve pagina
-                if (ActivePage is ChatPage)
-                {
-                    ActivePage = new ChatPage { DataContext = ChatViewModel };
-                }
-            }
-            catch (Exception ex)
-            {
-                // Toon foutmelding aan gebruiker
-                _ = ShowErrorDialogAsync("Fout bij wijzigen AI provider", ex.Message);
-            }
-        }
-
-        private async Task ExportConversationAsync(string formatString)
-        {
-            IsExportMenuOpen = false;
-
-            if (SelectedConversation == null || string.IsNullOrEmpty(formatString))
-                return;
-
-            if (Enum.TryParse<ExportService.ExportFormat>(formatString, out var format))
-            {
-                bool success = await _exportService.ExportConversationAsync(SelectedConversation, format);
-
-                if (!success)
-                {
-                    await ShowErrorDialogAsync("Export Mislukt", "Het gesprek kon niet worden geëxporteerd.");
-                }
-            }
-        }
-
-        private async Task ShowErrorDialogAsync(string title, string message)
-        {
-            var dialog = new ContentDialog
-            {
-                Title = title,
-                Content = message,
-                CloseButtonText = "OK"
-            };
-
-            await dialog.ShowAsync();
-        }
-
-        private async Task SaveConversationsAsync()
-        {
-            try
-            {
-                // Sla conversatie ID's op
-                var ids = Conversations.Select(c => c.Id).ToArray();
-                await _cacheService.SetAsync("saved_conversation_ids", ids);
-
-                // Sla elke conversatie op
-                foreach (var conversation in Conversations)
-                {
-                    await _cacheService.SetAsync($"conversation_{conversation.Id}", conversation);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Fout bij opslaan van gesprekken: {ex.Message}");
-            }
-        }
-
-        #region INotifyPropertyChanged
+        /// <summary>
+        /// Event that is raised when a property changes
+        /// </summary>
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        /// <summary>
+        /// Collection of messages in the chat
+        /// </summary>
+        public ObservableCollection<Message> Messages { get; } = [];
+
+        /// <summary>
+        /// User input in the text box
+        /// </summary>
+        public string UserInput
+        {
+            get => _userInput;
+            set
+            {
+                if (_userInput != value)
+                {
+                    _userInput = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Status message displayed in the UI
+        /// </summary>
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            set
+            {
+                if (_statusMessage != value)
+                {
+                    _statusMessage = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Indicates whether text is currently being generated
+        /// </summary>
+        public bool IsGenerating
+        {
+            get => _isGenerating;
+            set
+            {
+                if (_isGenerating != value)
+                {
+                    _isGenerating = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Command to send a message
+        /// </summary>
+        public ICommand SendMessageCommand { get; }
+
+        /// <summary>
+        /// Command to cancel message generation
+        /// </summary>
+        public ICommand CancelGenerationCommand { get; }
+
+        /// <summary>
+        /// Initializes a new instance of the MainViewModel class
+        /// </summary>
+        public MainViewModel(ILLMService? llmService = null)
+        {
+            _llmService = llmService;
+            _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+
+            // Initialize commands using simple command implementation
+            SendMessageCommand = new SimpleCommand(async _ => await SendMessageAsync(), _ => !IsGenerating && !string.IsNullOrWhiteSpace(UserInput));
+            CancelGenerationCommand = new SimpleCommand(_ => CancelGeneration(), _ => IsGenerating);
+
+            // Add welcome message
+            AddWelcomeMessage();
+        }
+
+        /// <summary>
+        /// Adds a welcome message to the chat
+        /// </summary>
+        private void AddWelcomeMessage()
+        {
+            Message welcomeMessage = Message.FromSystem(
+                "Welcome to DJAI! I'm an AI assistant that can help you with various questions. " +
+                "Type a message to get started.");
+
+            Messages.Add(welcomeMessage);
+        }
+
+        /// <summary>
+        /// Sends a message and generates a response
+        /// </summary>
+        private async Task SendMessageAsync()
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(UserInput) || IsGenerating)
+                {
+                    return;
+                }
+
+                if (_llmService == null || !_llmService.IsConfigured())
+                {
+                    StatusMessage = "AI service is not configured";
+                    return;
+                }
+
+                // Create a new user message
+                Message userMessage = Message.FromUser(UserInput);
+                Messages.Add(userMessage);
+
+                // Clear the user input
+                UserInput = string.Empty;
+
+                // Create a placeholder for the AI response
+                Message aiMessage = Message.FromAssistant("...");
+                Messages.Add(aiMessage);
+
+                // Set the status
+                IsGenerating = true;
+                StatusMessage = "Generating...";
+
+                // Create a new cancellation token source
+                _cancellationTokenSource = new CancellationTokenSource();
+
+                // Generate a response
+                string response;
+
+                try
+                {
+                    // For testing, use a simulated response
+                    await Task.Delay(1000, _cancellationTokenSource.Token);
+                    response = $"This is a simulated response to: {userMessage.Content}";
+
+                    // In a real implementation, you would use:
+                    // var messages = new List<Message>(Messages);
+                    // response = await _llmService.GetCompletionAsync(messages, _cancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    response = "[Generation cancelled]";
+                }
+
+                // Update the AI message with the response
+                _ = (_dispatcherQueue?.TryEnqueue(() =>
+                {
+                    aiMessage.Content = response;
+                    OnPropertyChanged(nameof(Messages));
+                }));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in SendMessageAsync: {ex.Message}");
+                StatusMessage = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                // Reset the status
+                IsGenerating = false;
+                StatusMessage = "Ready";
+            }
+        }
+
+        /// <summary>
+        /// Cancels the ongoing text generation
+        /// </summary>
+        private void CancelGeneration()
+        {
+            _cancellationTokenSource?.Cancel();
+        }
+
+        /// <summary>
+        /// Raises the PropertyChanged event
+        /// </summary>
+        /// <param name="propertyName">Name of the property that changed</param>
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-        #endregion
+    }
+
+    /// <summary>
+    /// Simple implementation of ICommand
+    /// </summary>
+    public partial class SimpleCommand(Action<object?> execute, Func<object?, bool>? canExecute = null) : ICommand
+    {
+        private readonly Action<object?> _execute = execute ?? throw new ArgumentNullException(nameof(execute));
+        private readonly Func<object?, bool>? _canExecute = canExecute;
+
+        public event EventHandler? CanExecuteChanged;
+
+        public bool CanExecute(object? parameter)
+        {
+            return _canExecute == null || _canExecute(parameter);
+        }
+
+        public void Execute(object? parameter)
+        {
+            _execute(parameter);
+        }
+
+        public void RaiseCanExecuteChanged()
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 }
